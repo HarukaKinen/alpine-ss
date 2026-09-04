@@ -79,3 +79,10 @@ rc-service ss status
 - OpenRC
 - root
 - 能访问 `dl-cdn.alpinelinux.org`（装包）
+
+## 作者在写这个脚本之前用的是什么
+
+- [Slotheve/Proxy](https://github.com/Slotheve/Proxy)
+- [yuwan027/AlpineV2bX](https://github.com/yuwan027/AlpineV2bX)
+
+感谢他们
