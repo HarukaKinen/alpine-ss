@@ -72,7 +72,7 @@ install_pkg() {
 
 ask_port() {
     printf "SS 端口 [1-65535] (默认 8888): "
-    read -r PORT </dev/tty || true
+    read -r PORT </dev/tty 2>/dev/null || read -r PORT || true
     [ -z "${PORT:-}" ] && PORT=8888
     case "$PORT" in
         *[!0-9]*|"") err "端口必须是数字"; ask_port; return ;;
@@ -93,7 +93,7 @@ ask_method() {
     echo "  3) chacha20-ietf-poly1305   推荐 ARM / 无 AES-NI"
     echo "  4) 2022-blake3-aes-256-gcm  SS2022，客户端需支持 2022"
     printf "选择 [1-4] (默认按架构: %s): " "$def"
-    read -r pick </dev/tty || true
+    read -r pick </dev/tty 2>/dev/null || read -r pick || true
     [ -z "${pick:-}" ] && pick=0
     case "$pick" in
         1) METHOD="aes-256-gcm" ;;
@@ -231,7 +231,7 @@ do_install() {
 
 do_uninstall() {
     printf "确认卸载 SS？[y/N]: "
-    read -r a </dev/tty || true
+    read -r a </dev/tty 2>/dev/null || read -r a || true
     case "$a" in
         y|Y)
             rc-service ss stop >/dev/null 2>&1 || true
@@ -281,7 +281,7 @@ menu() {
     printf "  %b0)%b  退出\n" "$GREEN" "$PLAIN"
     echo
     printf "  选择: "
-    read -r ans </dev/tty || true
+    read -r ans </dev/tty 2>/dev/null || read -r ans || true
     case "${ans:-}" in
         1) do_install ;;
         2) do_uninstall ;;

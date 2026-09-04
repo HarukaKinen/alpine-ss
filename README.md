@@ -11,22 +11,19 @@
 ## 一键安装
 
 ```sh
-wget -qO- https://raw.githubusercontent.com/HarukaKinen/alpine-ss/master/alpine-ss.sh | sh
+wget -qO /tmp/alpine-ss.sh https://raw.githubusercontent.com/HarukaKinen/alpine-ss/master/alpine-ss.sh
+sh /tmp/alpine-ss.sh
 ```
 
 没有 wget 时：
 
 ```sh
-apk add --no-cache wget
-wget -qO- https://raw.githubusercontent.com/HarukaKinen/alpine-ss/master/alpine-ss.sh | sh
-```
-
-或：
-
-```sh
 apk add --no-cache curl
-curl -fsSL https://raw.githubusercontent.com/HarukaKinen/alpine-ss/master/alpine-ss.sh | sh
+curl -fsSL https://raw.githubusercontent.com/HarukaKinen/alpine-ss/master/alpine-ss.sh -o /tmp/alpine-ss.sh
+sh /tmp/alpine-ss.sh
 ```
+
+不要用 `wget -qO- ... | sh` 直接管道跑：脚本要从 stdin 读菜单选择，管道会占掉 stdin，导致「选择」直接读空、报「无效选择」。下载到文件再执行就没这问题。
 
 需要 root。脚本会问端口（默认 8888）和加密，密码自动生成。
 
