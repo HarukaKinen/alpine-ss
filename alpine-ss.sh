@@ -13,6 +13,7 @@ PLAIN="\033[0m"
 CONF_DIR="/etc/shadowsocks"
 CONF="$CONF_DIR/config.json"
 INIT="/etc/init.d/ss"
+PIDFILE="/run/ss.pid"
 LOG="/var/log/ss.log"
 
 info()  { printf "%b%s%b\n" "$BLUE" "$*" "$PLAIN"; }
@@ -137,7 +138,8 @@ name="ss"
 command="${SSBIN}"
 command_args="-c ${CONF}"
 command_background=true
-pidfile="/run/ss.pid"
+pidfile="${PIDFILE}"
+retry="TERM/5/KILL/5"
 output_log="${LOG}"
 error_log="${LOG}"
 
@@ -148,18 +150,32 @@ EOF
     chmod +x "$INIT"
 }
 
+stop_hard() {
+    # zap only clears OpenRC state; stop orphaned processes before using it.
+    rc-service ss stop >/dev/null 2>&1 || true
+    if SSBIN=$(command -v ssserver); then
+        if ! start-stop-daemon --stop --exec "$SSBIN" --retry TERM/5/KILL/5 --oknodo; then
+            err "无法停止旧 ssserver 进程，未清除服务状态"
+            return 1
+        fi
+    fi
+    rm -f "$PIDFILE"
+    rc-service ss zap >/dev/null 2>&1 || true
+}
+
 start_svc() {
     rc-update add ss default >/dev/null 2>&1 || true
-    rc-service ss zap >/dev/null 2>&1 || true
-    rc-service ss restart
-    sleep 1
-    if rc-service ss status >/dev/null 2>&1; then
-        ok "服务已启动"
-    else
-        err "服务启动失败，看日志: $LOG"
-        tail -n 30 "$LOG" 2>/dev/null || true
-        exit 1
+    stop_hard || return 1
+    if rc-service ss start; then
+        sleep 1
+        if rc-service ss status >/dev/null 2>&1; then
+            ok "服务已启动"
+            return 0
+        fi
     fi
+    err "服务启动失败，看日志: $LOG"
+    tail -n 30 "$LOG" 2>/dev/null || true
+    exit 1
 }
 
 fetch() {
@@ -210,7 +226,11 @@ show_info() {
     echo "  模式:   tcp_and_udp"
     echo
     if command -v ss >/dev/null 2>&1; then
-        ss -lntup 2>/dev/null | grep -E ":${PORT}\b" || warn "端口 $PORT 未在监听，检查: rc-service ss status"
+        if ss -lntup 2>/dev/null | awk '{print $5}' | grep -qE "[:.]${PORT}\$"; then
+            ok "端口 ${PORT} 正在监听"
+        else
+            warn "端口 $PORT 未在监听，检查: rc-service ss status"
+        fi
     fi
 }
 
@@ -234,9 +254,9 @@ do_uninstall() {
     read -r a </dev/tty 2>/dev/null || read -r a || true
     case "$a" in
         y|Y)
-            rc-service ss stop >/dev/null 2>&1 || true
+            stop_hard
             rc-update del ss default >/dev/null 2>&1 || true
-            rm -f "$INIT" /run/ss.pid
+            rm -f "$INIT" "$PIDFILE"
             rm -rf "$CONF_DIR"
             ok "已卸载（未移除 shadowsocks-rust 软件包）"
             ;;
@@ -246,14 +266,22 @@ do_uninstall() {
 
 do_restart() {
     [ -f "$INIT" ] || { err "未安装"; exit 1; }
-    rc-service ss zap >/dev/null 2>&1 || true
-    rc-service ss restart
-    rc-service ss status || true
+    start_svc
 }
 
 do_stop() {
     [ -f "$INIT" ] || { err "未安装"; exit 1; }
-    rc-service ss stop
+    stop_hard
+    if rc-service ss status >/dev/null 2>&1; then
+        err "仍在运行"
+        exit 1
+    fi
+    ok "已停止"
+}
+
+port_in_use() {
+    command -v ss >/dev/null 2>&1 || return 1
+    ss -lnt 2>/dev/null | awk 'NR>1 {print $4}' | grep -qE "[:.]${1}\$"
 }
 
 do_change() {
@@ -261,6 +289,9 @@ do_change() {
     ask_port
     ask_method
     gen_pass
+    if port_in_use "$PORT"; then
+        warn "端口 $PORT 当前已被占用（旧 ss 进程会被自动停掉；若属于其他程序请重选端口）"
+    fi
     write_conf
     write_init
     start_svc
