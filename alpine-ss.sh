@@ -154,7 +154,8 @@ stop_hard() {
     # zap only clears OpenRC state; stop orphaned processes before using it.
     rc-service ss stop >/dev/null 2>&1 || true
     if SSBIN=$(command -v ssserver); then
-        if ! start-stop-daemon --stop --exec "$SSBIN" --retry TERM/5/KILL/5 --oknodo; then
+        # OpenRC stop succeeds with no matches unless --oknodo is passed.
+        if ! start-stop-daemon --stop --exec "$SSBIN" --retry TERM/5/KILL/5; then
             err "无法停止旧 ssserver 进程，未清除服务状态"
             return 1
         fi
