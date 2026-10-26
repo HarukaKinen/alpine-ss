@@ -138,8 +138,7 @@ name="ss"
 command="${SSBIN}"
 command_args="-c ${CONF}"
 command_background=true
-pidfile="${PIDFILE}"
-retry="TERM/5/KILL/5"
+pidfile="/run/ss.pid"
 output_log="${LOG}"
 error_log="${LOG}"
 
@@ -243,6 +242,7 @@ do_install() {
     ask_port
     ask_method
     gen_pass
+    prepare_port
     write_conf
     write_init
     start_svc
@@ -288,11 +288,7 @@ port_in_use() {
     fi
 }
 
-do_change() {
-    [ -f "$CONF" ] || { err "未安装"; exit 1; }
-    ask_port
-    ask_method
-    gen_pass
+prepare_port() {
     stop_hard
     while port_in_use "$PORT"; do
         warn "旧 SS 已停止，但端口 $PORT 仍被占用，请选择其他端口（配置尚未修改）"
@@ -303,6 +299,14 @@ do_change() {
         fi
         ask_port
     done
+}
+
+do_change() {
+    [ -f "$CONF" ] || { err "未安装"; exit 1; }
+    ask_port
+    ask_method
+    gen_pass
+    prepare_port
     write_conf
     write_init
     start_svc
