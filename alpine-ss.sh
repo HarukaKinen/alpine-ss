@@ -281,8 +281,11 @@ do_stop() {
 }
 
 port_in_use() {
-    command -v ss >/dev/null 2>&1 || return 1
-    ss -lnt 2>/dev/null | awk 'NR>1 {print $4}' | grep -qE "[:.]${1}\$"
+    if command -v ss >/dev/null 2>&1; then
+        ss -H -lnut | awk '{print $5}' | grep -qE "[:.]${1}\$"
+    else
+        netstat -lnut | awk '/^(tcp|udp)/ {print $4}' | grep -qE "[:.]${1}\$"
+    fi
 }
 
 do_change() {
@@ -290,9 +293,16 @@ do_change() {
     ask_port
     ask_method
     gen_pass
-    if port_in_use "$PORT"; then
-        warn "端口 $PORT 当前已被占用（旧 ss 进程会被自动停掉；若属于其他程序请重选端口）"
-    fi
+    stop_hard
+    while port_in_use "$PORT"; do
+        warn "旧 SS 已停止，但端口 $PORT 仍被占用，请选择其他端口（配置尚未修改）"
+        if command -v ss >/dev/null 2>&1; then
+            ss -lnutp 2>/dev/null || true
+        else
+            netstat -lnutp 2>/dev/null || true
+        fi
+        ask_port
+    done
     write_conf
     write_init
     start_svc
